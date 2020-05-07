@@ -129,64 +129,17 @@ class Net(nn.Module):
 net = Net(n_inputs=15, n_hidden_neurons=512, n_outputs=2)
 print(net)
 
-# Scaled mixture Gaussian prior
-Pi = .25
-SigmaPrior1 = 2.
-SigmaPrior2 = .1
 
-NegHalfLog2PI = -.5 * math.log(2.0 * math.pi)
-
-def log_gaussian(x, mu, sigma):
-    """
-    Log prob of a Gaussian
-    :param x:
-    :param mu:
-    :param sigma: a real number
-    :return: Log-Gaussian prob of sample x given mean mu and std sigam
-    """
-    if type(sigma) == Variable:
-        return NegHalfLog2PI - torch.log(sigma) - (x - mu) ** 2 / (2 * sigma ** 2)
-    else:
-        return NegHalfLog2PI - math.log(sigma) - (x - mu) ** 2 / (2 * sigma ** 2)
-
-
-def gaussian(x, mu, sigma):
-    """
-    Prob of a Gaussian
-    :param x:
-    :param mu:
-    :param sigma:
-    :return:
-    """
-    scaling = 1. / math.sqrt(2. * math.pi * (sigma ** 2))   # normalizing constant
-    bell = torch.exp(- (x - mu) ** 2 / (2. * sigma ** 2))
-    return scaling * bell
-
-
-
-def log_mixture_gaussian(x):
-    """
-    Scaled mixture Gaussian prior
-    :param x:
-    :return:
-    """
-    gaussian1 = gaussian(x, 0, SigmaPrior1)
-    gaussian2 = gaussian(x, 0, SigmaPrior2)
-    return torch.log(Pi * gaussian1 + (1 - Pi) * gaussian2)
 
 'model'
 log_softmax = nn.LogSoftmax(dim=1)
 def model(x_data, y_data):
 
-    fc1w_prior = log_mixture_gaussian(W).sum() + \
-                 log_mixture_gaussian(b).sum()
+    fc1w_prior = Normal(loc=torch.zeros_like(net.fc1.weight), scale=torch.ones_like(net.fc1.weight))
+    fc1b_prior = Normal(loc=torch.zeros_like(net.fc1.bias), scale=torch.ones_like(net.fc1.bias))
 
-
-    fc1b_prior = ScaleMixtureGaussian(PI, SIGMA_1, SIGMA_2)
-
-    outw_prior = ScaleMixtureGaussian(PI, SIGMA_1, SIGMA_2)
-
-    outb_prior = ScaleMixtureGaussian(PI, SIGMA_1, SIGMA_2)
+    outw_prior = Normal(loc=torch.zeros_like(net.out.weight), scale=torch.ones_like(net.out.weight))
+    outb_prior = Normal(loc=torch.zeros_like(net.out.bias), scale=torch.ones_like(net.out.bias))
 
     priors = {'fc1.weight': fc1w_prior, 'fc1.bias': fc1b_prior,
               'out.weight': outw_prior, 'out.bias': outb_prior}
@@ -198,28 +151,6 @@ def model(x_data, y_data):
     lifted_reg_model = lifted_module()
     lhat = log_softmax(lifted_reg_model(x_data))
     pyro.sample("obs", Categorical(logits=lhat), obs=y_data)
-
-'''   
-    fc1w_prior = Normal(loc=torch.zeros_like(net.fc1.weight), scale=torch.ones_like(net.fc1.weight)) + \
-                 Normal(loc=torch.zeros_like(net.fc1.weight), scale=torch.full_like(net.fc1.weight, math.exp(-3)))
-
-    fc1b_prior = Normal(loc=torch.zeros_like(net.fc1.bias), scale=torch.ones_like(net.fc1.bias)) + \
-                 Normal(loc=torch.zeros_like(net.fc1.bias), scale=torch.full_like(net.fc1.bias, math.exp(-3)))
-
-    outw_prior = Normal(loc=torch.zeros_like(net.out.weight), scale=torch.ones_like(net.out.weight)) + \
-                 Normal(loc=torch.zeros_like(net.out.weight), scale=torch.full_like(net.out.weight, math.exp(-3)))
-
-    outb_prior = Normal(loc=torch.zeros_like(net.out.bias), scale=torch.ones_like(net.out.bias)) + \
-                 Normal(loc=torch.zeros_like(net.out.bias), scale=torch.full_like(net.out.bias, math.exp(-3)))
-
-
-
-    fc1w_prior = Normal(loc=torch.zeros_like(net.fc1.weight), scale=torch.ones_like(net.fc1.weight))
-    fc1b_prior = Normal(loc=torch.zeros_like(net.fc1.bias), scale=torch.ones_like(net.fc1.bias))
-
-    outw_prior = Normal(loc=torch.zeros_like(net.out.weight), scale=torch.ones_like(net.out.weight))
-    outb_prior = Normal(loc=torch.zeros_like(net.out.bias), scale=torch.ones_like(net.out.bias))
-'''
 
 
 'guide'
