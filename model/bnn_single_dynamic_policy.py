@@ -1,31 +1,20 @@
-
 import os
+import pickle
+import time
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pyro
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.utils.data as Data
-from torch.nn import init
-
-from matplotlib import colors
-from torch.utils.data import DataLoader
-from torch.autograd import Variable
-
-import pyro
-from pyro.distributions import Normal, Categorical, Bernoulli, Multinomial
+from pyro.distributions import Normal, Bernoulli
 from pyro.infer import SVI, Trace_ELBO
 from pyro.optim import Adam
-from sklearn.model_selection import train_test_split
-import time
-
-from sklearn.metrics import precision_recall_curve
 from sklearn.metrics import roc_curve, auc
-from sklearn.preprocessing import MinMaxScaler, Normalizer
-import math
-
-
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import Normalizer
+from torch.autograd import Variable
 
 pyro.enable_validation(False)
 
@@ -35,45 +24,55 @@ torch.manual_seed(999)
 if torch.cuda.is_available():
     torch.cuda.manual_seed_all(999)
 
-
-
 '''
 data preprocessing
 '''
 # read csv file
-FILE_PATH_TRAIN = 'test_record_iter_fix_static.csv'
-origin_data = pd.read_csv(FILE_PATH_TRAIN)
+DIR = "/Users/mohamed/git/mik-zy/CyberPortect_BNN/"
+RESULTS_DIR = DIR + "results/"
+if not os.path.exists(RESULTS_DIR):
+    os.makedirs(RESULTS_DIR)
 
+MODEL_NAME = "bnn"
+FILE_PATH_TRAIN = '/Users/mohamed/ownCloud/Exchange/Shared outside/1920 Cyberprotect/Data/200610/test_record_iter_dynamic.csv'
 
-# select the needed data by columns index
-input_features = ['grip_pos_x', 'grip_pos_y', 'grip_pos_z',
+INPUT_FEATURES = ['grip_pos_x', 'grip_pos_y', 'grip_pos_z',
                   'grip_vel_x', 'grip_vel_y', 'grip_vel_z',
                   'obst_pos_x_1', 'obst_pos_y_1', 'obst_pos_z_1',
                   'obst_vel_x_1', 'obst_vel_y_1', 'obst_vel_z_1',
                   'goal_pos_x', 'goal_pos_y', 'goal_pos_z',
                   'action_x', 'action_y', 'action_z']
 
-
-label = 'is_safe_action'
-all_features = input_features + [label]
-
-origin_data[label] = origin_data[label].astype(int)
+# print(ORIGIN_DATA.loc[:, label].value_counts())
+ORIGIN_DATA = pd.read_csv(FILE_PATH_TRAIN)
+softplus = torch.nn.Softplus()
 
 
-#print(origin_data.loc[:, label].value_counts())
+def get_processed_data(origin_data=ORIGIN_DATA, input_features=INPUT_FEATURES):
+    label = 'is_safe_action'
+    # select the needed data by columns index
 
+    all_features = input_features + [label]
 
-# select safe_state & unsafe state out, then make them equal
-n_safe_state = origin_data.loc[origin_data[label] == True]
-n_unsafe_state = origin_data.loc[origin_data[label] == False]
-n_safe_state = n_safe_state.sample(n=len(n_unsafe_state))  # make the number of safe and unsafe be equal
+    origin_data[label] = origin_data[label].astype(int)
+    # select safe_state & unsafe state out, then make them equal
+    n_safe_state = origin_data.loc[origin_data[label] == True]
+    n_unsafe_state = origin_data.loc[origin_data[label] == False]
+    n_safe_state = n_safe_state.sample(n=len(n_unsafe_state))  # make the number of safe and unsafe be equal
 
-prepocessed_data = pd.concat([n_safe_state, n_unsafe_state], axis=0)
-prepocessed_data = prepocessed_data.sample(frac=1)  # select sampled safe data
-prepocessed_data = prepocessed_data.loc[:, all_features]
+    prepocessed_data = pd.concat([n_safe_state, n_unsafe_state], axis=0)
+    prepocessed_data = prepocessed_data.sample(frac=1)  # select sampled safe data
+    prepocessed_data = prepocessed_data.loc[:, all_features]
 
-print(prepocessed_data)
+    data = prepocessed_data.iloc[0:12000]
+    data = data.values
+    X, Y = data[:, :-1], data[:, -1]
+    print(X.shape, Y.shape)
 
+    X, _ = Normalize_Data(X)
+
+    print(prepocessed_data)
+    return X, Y
 
 
 class BNN(nn.Module):
@@ -120,6 +119,10 @@ class BNN(nn.Module):
         self.optimizer = Adam(adam_params)
         # torch.optim.Adam(adam_params, lr=learning_rate)
 
+    def init_from_file(self, file_name, load_to_device="cpu"):
+        net = torch.load(file_name,
+                         map_location=load_to_device)
+
     def __repr__(self):
         return str([(i, fc.weight, fc.bias) for i, fc in enumerate(self.fc) if isinstance(fc, nn.Linear)])
 
@@ -127,8 +130,6 @@ class BNN(nn.Module):
         y_hat = self.model(x)
         # print('y_hat',y_hat)
         return y_hat
-
-
 
 
 def model(fc_network: BNN, x_data, y_data):
@@ -158,7 +159,6 @@ def model(fc_network: BNN, x_data, y_data):
         prediction_mean = lifted_reg_model(x_data).squeeze()
         pyro.sample("obs", Bernoulli(prediction_mean),
                     obs=y_data.squeeze())
-
 
 
 def guide(fc_network: BNN, x_data, y_data):
@@ -212,8 +212,7 @@ def get_batch_indices(N, batch_size):
     return all_batches
 
 
-
-def train(iterations):
+def train(iterations, model_name=MODEL_NAME):
     global X_train, Y_train
     svi = SVI(model, guide, optim, loss=Trace_ELBO())
     losses = []
@@ -251,7 +250,6 @@ def train(iterations):
                     print(j, "avg loss {}, error: {}, std: {}".format(epoch_loss / float(N), error, std))
     '''
 
-
     end1 = time.time()
     end = time.clock()
     train_time = end1 - start1
@@ -260,6 +258,11 @@ def train(iterations):
     print('execute CPU time:', execute_time)
 
     # sampled_models = plot_pyro_params()
+
+    # Saving the NN
+    pickle.dump(net, open(RESULTS_DIR + model_name + '_pickled.pkl', "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+    # Saving pyro
+    pyro.get_param_store().save(RESULTS_DIR + model_name + "_pyro.pkl")
 
     plt.figure(figsize=(12, 8))
     plt.plot(losses)
@@ -273,10 +276,9 @@ def predict(x, num_samples=10):
     print(yhats)
     mean = torch.mean(torch.stack(yhats), 0)
     print('mean', mean)
-#    std = torch.std(torch.stack(yhats), 0)
+    #    std = torch.std(torch.stack(yhats), 0)
     # return torch.stack(yhats), np.mean(std.numpy(), axis=1)
     return np.argmax(mean.numpy(), axis=1)
-
 
 
 def Normalize_Data(data):
@@ -285,21 +287,15 @@ def Normalize_Data(data):
     return scaled_data, scaler
 
 
-
-
 if __name__ == '__main__':
-    softplus = torch.nn.Softplus()
+
     log_softmax = nn.LogSoftmax(dim=1)
 
     np.random.seed(0)
     torch.manual_seed(0)
 
-    data = prepocessed_data.iloc[0:12000]
-    data = data.values
-    X, Y = data[:, :-1], data[:, -1]
+    X, Y = get_processed_data()
     print(X.shape, Y.shape)
-
-    X, _ = Normalize_Data(X)
 
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.01, random_state=73)
     X_train, Y_train = Variable(torch.Tensor(X_train)), Variable(torch.Tensor(Y_train))
@@ -317,31 +313,25 @@ if __name__ == '__main__':
     net = BNN(n_input_dim=n_input_dim, n_hidden_layers=hidden_layers
               , n_output_dim=n_output_dim, activation_functions=[nn.Tanh()] * len(hidden_layers))
 
-
     optim = Adam({"lr": 0.01})
     accs = []
     stds = []
-    train(iterations=50)
-    torch.save(net.state_dict(), 'model_dynamic_policy.pkl')
+    train(iterations=2, model_name=MODEL_NAME)
 
-
-# prediction
+    # prediction
     with torch.no_grad():
-            sampled_models = [guide(net, X_test, None) for _ in range(10)]
-            yhats = [model_(X_test).data for model_ in sampled_models]
-            yhats_test = torch.stack(yhats).squeeze()  # n_models * y_hat_test
-            yhats_test_mean = torch.mean((yhats_test), axis=0)  # test probability
-            y_pred = (yhats_test_mean.detach().numpy() > 0.5).astype(int)  # test results
+        sampled_models = [guide(net, X_test, None) for _ in range(10)]
+        yhats = [model_(X_test).data for model_ in sampled_models]
+        yhats_test = torch.stack(yhats).squeeze()  # n_models * y_hat_test
+        yhats_test_mean = torch.mean((yhats_test), axis=0)  # test probability
+        y_pred = (yhats_test_mean.detach().numpy() > 0.5).astype(int)  # test results
 
-            diff = np.abs((yhats_test_mean.detach().numpy() > 0.5).astype(int) - Y_test.numpy())
-            error = np.mean(diff)  # test error
-            std = np.std(diff)     # test standard deviation
-            print("error: {}, std: {}'".format(error, std))
+        diff = np.abs((yhats_test_mean.detach().numpy() > 0.5).astype(int) - Y_test.numpy())
+        error = np.mean(diff)  # test error
+        std = np.std(diff)  # test standard deviation
+        print("error: {}, std: {}'".format(error, std))
 
-
-
-
-#    precision, recall, pr_thresh = precision_recall_curve(Y_test, yhats_test_mean)
+    #    precision, recall, pr_thresh = precision_recall_curve(Y_test, yhats_test_mean)
 
     fpr, tpr, _ = roc_curve(Y_test, yhats_test_mean)
     roc_auc = auc(fpr, tpr)
@@ -349,7 +339,6 @@ if __name__ == '__main__':
     plt.stackplot(fpr, tpr, color='steelblue', alpha=0.5, edgecolor='black')
     plt.plot(fpr, tpr, color='black', lw=1)
     plt.text(0.1, 0.7, 'BNN (area = %0.2f)' % roc_auc)
-
 
     plt.title('ROC Curve')
     plt.xlabel('False Positive Rate (fpr)')
