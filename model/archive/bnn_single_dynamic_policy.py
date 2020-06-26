@@ -1,5 +1,3 @@
-import os
-import pickle
 import time
 
 import matplotlib.pyplot as plt
@@ -28,51 +26,36 @@ if torch.cuda.is_available():
 data preprocessing
 '''
 # read csv file
-DIR = "/Users/mohamed/git/mik-zy/CyberPortect_BNN/"
-RESULTS_DIR = DIR + "results/"
-if not os.path.exists(RESULTS_DIR):
-    os.makedirs(RESULTS_DIR)
-
-MODEL_NAME = "bnn"
 FILE_PATH_TRAIN = '/Users/mohamed/ownCloud/Exchange/Shared outside/1920 Cyberprotect/Data/200610/test_record_iter_dynamic.csv'
+origin_data = pd.read_csv(FILE_PATH_TRAIN)
 
-INPUT_FEATURES = ['grip_pos_x', 'grip_pos_y', 'grip_pos_z',
+# select the needed data by columns index
+input_features = ['grip_pos_x', 'grip_pos_y', 'grip_pos_z',
                   'grip_vel_x', 'grip_vel_y', 'grip_vel_z',
                   'obst_pos_x_1', 'obst_pos_y_1', 'obst_pos_z_1',
                   'obst_vel_x_1', 'obst_vel_y_1', 'obst_vel_z_1',
                   'goal_pos_x', 'goal_pos_y', 'goal_pos_z',
                   'action_x', 'action_y', 'action_z']
 
-# print(ORIGIN_DATA.loc[:, label].value_counts())
-ORIGIN_DATA = pd.read_csv(FILE_PATH_TRAIN)
-softplus = torch.nn.Softplus()
+label = 'is_safe_action'
+all_features = input_features + [label]
+
+origin_data[label] = origin_data[label].astype(int)
+
+# print(origin_data.loc[:, label].value_counts())
 
 
-def get_processed_data(origin_data=ORIGIN_DATA, input_features=INPUT_FEATURES):
-    label = 'is_safe_action'
-    # select the needed data by columns index
+# select safe_state & unsafe state out, then make them equal
+n_safe_state = origin_data.loc[origin_data[label] == True]
+n_unsafe_state = origin_data.loc[origin_data[label] == False]
+n_safe_state = n_safe_state.sample(n=len(n_unsafe_state))  # make the number of safe and unsafe be equal
 
-    all_features = input_features + [label]
+prepocessed_data = pd.concat([n_safe_state, n_unsafe_state], axis=0)
+prepocessed_data = prepocessed_data.sample(frac=1)  # select sampled safe data
+prepocessed_data = prepocessed_data.loc[:, all_features]
 
-    origin_data[label] = origin_data[label].astype(int)
-    # select safe_state & unsafe state out, then make them equal
-    n_safe_state = origin_data.loc[origin_data[label] == True]
-    n_unsafe_state = origin_data.loc[origin_data[label] == False]
-    n_safe_state = n_safe_state.sample(n=len(n_unsafe_state))  # make the number of safe and unsafe be equal
+print(prepocessed_data)
 
-    prepocessed_data = pd.concat([n_safe_state, n_unsafe_state], axis=0)
-    prepocessed_data = prepocessed_data.sample(frac=1)  # select sampled safe data
-    prepocessed_data = prepocessed_data.loc[:, all_features]
-
-    data = prepocessed_data.iloc[0:12000]
-    data = data.values
-    X, Y = data[:, :-1], data[:, -1]
-    print(X.shape, Y.shape)
-
-    X, _ = Normalize_Data(X)
-
-    print(prepocessed_data)
-    return X, Y
 
 
 class BNN(nn.Module):
@@ -119,10 +102,6 @@ class BNN(nn.Module):
         self.optimizer = Adam(adam_params)
         # torch.optim.Adam(adam_params, lr=learning_rate)
 
-    def init_from_file(self, file_name, load_to_device="cpu"):
-        net = torch.load(file_name,
-                         map_location=load_to_device)
-
     def __repr__(self):
         return str([(i, fc.weight, fc.bias) for i, fc in enumerate(self.fc) if isinstance(fc, nn.Linear)])
 
@@ -159,6 +138,7 @@ def model(fc_network: BNN, x_data, y_data):
         prediction_mean = lifted_reg_model(x_data).squeeze()
         pyro.sample("obs", Bernoulli(prediction_mean),
                     obs=y_data.squeeze())
+
 
 
 def guide(fc_network: BNN, x_data, y_data):
@@ -212,7 +192,7 @@ def get_batch_indices(N, batch_size):
     return all_batches
 
 
-def train(iterations, model_name=MODEL_NAME):
+def train(iterations):
     global X_train, Y_train
     svi = SVI(model, guide, optim, loss=Trace_ELBO())
     losses = []
@@ -246,9 +226,9 @@ def train(iterations, model_name=MODEL_NAME):
                     diff = np.abs((yhats_test_mean.detach().numpy() > 0.5).astype(int) - Y_test.numpy())
                     error = np.mean(diff)
                     std = np.std(diff)
-
                     print(j, "avg loss {}, error: {}, std: {}".format(epoch_loss / float(N), error, std))
     '''
+
 
     end1 = time.time()
     end = time.clock()
@@ -258,11 +238,6 @@ def train(iterations, model_name=MODEL_NAME):
     print('execute CPU time:', execute_time)
 
     # sampled_models = plot_pyro_params()
-
-    # Saving the NN
-    pickle.dump(net, open(RESULTS_DIR + model_name + '_pickled.pkl', "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-    # Saving pyro
-    pyro.get_param_store().save(RESULTS_DIR + model_name + "_pyro.pkl")
 
     plt.figure(figsize=(12, 8))
     plt.plot(losses)
@@ -281,6 +256,7 @@ def predict(x, num_samples=10):
     return np.argmax(mean.numpy(), axis=1)
 
 
+
 def Normalize_Data(data):
     scaler = Normalizer().fit(data)
     scaled_data = scaler.transform(data)
@@ -288,14 +264,18 @@ def Normalize_Data(data):
 
 
 if __name__ == '__main__':
-
+    softplus = torch.nn.Softplus()
     log_softmax = nn.LogSoftmax(dim=1)
 
     np.random.seed(0)
     torch.manual_seed(0)
 
-    X, Y = get_processed_data()
+    data = prepocessed_data.iloc[0:12000]
+    data = data.values
+    X, Y = data[:, :-1], data[:, -1]
     print(X.shape, Y.shape)
+
+    X, _ = Normalize_Data(X)
 
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.01, random_state=73)
     X_train, Y_train = Variable(torch.Tensor(X_train)), Variable(torch.Tensor(Y_train))
@@ -316,7 +296,8 @@ if __name__ == '__main__':
     optim = Adam({"lr": 0.01})
     accs = []
     stds = []
-    train(iterations=2, model_name=MODEL_NAME)
+    train(iterations=50)
+    torch.save(net.state_dict(), 'model_dynamic_policy.pkl')
 
     # prediction
     with torch.no_grad():
