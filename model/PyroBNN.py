@@ -277,32 +277,33 @@ class PyroBNN:
     def predict(self, x, sample_size=None, normalize=False):
         with torch.no_grad():
             if normalize:
-                x_norm = self.normalizer.fit(x)
+                x_norm = self.normalizer.transform(x)
+                x_norm = torch.tensor(x_norm).type_as(x)
             else:
                 x_norm = x
-                if self.sample_modules is None:
-                    raise Exception("The BNN is not trained yet! Please train first using nn.train(*args)")
-                if sample_size is None:
-                    sampled_nns = self.sample_modules
+            if self.sample_modules is None:
+                raise Exception("The BNN is not trained yet! Please train first using nn.train(*args)")
+            if sample_size is None:
+                sampled_nns = self.sample_modules
+            else:
+                if sample_size < self.predict_sample_size:
+                    sampled_nns = self.sample_modules[:sample_size]
                 else:
-                    if sample_size < self.predict_sample_size:
-                        sampled_nns = self.sample_modules[:sample_size]
+                    if sample_size > self.predict_sample_size:
+                        # add new samples to self.sample_modules
+                        self.sample_modules.extend(
+                            [self.guide(None, None) for _ in range(sample_size - self.predict_sample_size)])
+                        self.predict_sample_size = sample_size
+                        print("-" * 10, "predict_sample_size changed to {}".format(self.predict_sample_size))
                     else:
-                        if sample_size > self.predict_sample_size:
-                            # add new samples to self.sample_modules
-                            self.sample_modules.extend(
-                                [self.guide(None, None) for _ in range(sample_size - self.predict_sample_size)])
-                            self.predict_sample_size = sample_size
-                            print("-" * 10, "predict_sample_size changed to {}".format(self.predict_sample_size))
-                        else:
-                            pass
-                        sampled_nns = self.sample_modules
-                # print('started prediction---')
-                yhats = torch.stack([model(x_norm).data for model in sampled_nns]).squeeze()
-                mean = torch.mean(yhats, axis=0)  # test probability
-                std = torch.std(yhats, axis=0)  # test probability
-                yhat_final = (mean.detach().numpy() > 0.5).astype(int)
-                return yhat_final, mean, std
+                        pass
+                    sampled_nns = self.sample_modules
+            # print('started prediction---')
+            yhats = torch.stack([model(x_norm).data for model in sampled_nns]).squeeze()
+            mean = torch.mean(yhats, axis=0)  # test probability
+            std = torch.std(yhats, axis=0)  # test probability
+            yhat_final = (mean.detach().numpy() > 0.5).astype(int)
+            return yhat_final, mean, std
 
 
 def statistics(elbo_losses, train_loss, test_loss, pyro_bnn, X, Y, show=True, path=None):
@@ -379,7 +380,7 @@ def parameter_search():
         statistics(elbo_losses, train_loss, test_loss, pyro_bnn, X_test, Y_test, path=model_path, show=False)
 
 
-if __name__ == '__main__':
+def test():
     # Processing data
     X, Y, X_normalizer = get_processed_data()
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.01, random_state=73)
@@ -391,7 +392,7 @@ if __name__ == '__main__':
         os.makedirs(RESULTS_DIR)
 
     train = True
-    model_name = "bnn_final"
+    model_name = "bnn_final_is_viable_no_es_1"
     # for sample_size in [int(1e4), int(1e5), int(1e6)]:
     model_path = RESULTS_DIR + model_name
     # -----------------------------------------------------------------------
@@ -402,7 +403,7 @@ if __name__ == '__main__':
         batch_size = 32
         network_size = [20, 20]
         sample_size = int(1e5)
-        early_stop = True
+        early_stop = False
         n_input_dim, hidden_layers, n_output_dim = X.shape[1], network_size, 1
         pyro.clear_param_store()
         pyro_bnn = PyroBNN(training_data_sample_size=sample_size, predict_sample_size=10, normalizer=X_normalizer,
@@ -419,3 +420,7 @@ if __name__ == '__main__':
     # -----------------------------------------------------------------------
     # pyro.clear_param_store()
     # bnn_loaded = PyroBNN.load_model(model_path)
+
+
+if __name__ == '__main__':
+    test()

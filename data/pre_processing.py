@@ -3,16 +3,27 @@ from sklearn.preprocessing import Normalizer
 
 
 def static_obstacle_data():
-    FILE_PATH_TRAIN = '/Users/mohamed/ownCloud/Exchange/Shared outside/1920 Cyberprotect/Data/200610/test_record_iter_dynamic.csv'
+    # FILE_PATH_TRAIN = '/home/mae/ownCloud/Exchange/Shared outside/1920 Cyberprotect/Data/200610/test_record_iter_dynamic.csv'
+    FILE_PATH_TRAIN = '/home/mae/git/robacademy/academy/experiments/reach/safety_layer/results/static_obstacle/bnn.csv'
 
-    INPUT_FEATURES = ['grip_pos_x', 'grip_pos_y', 'grip_pos_z',
-                      'grip_vel_x', 'grip_vel_y', 'grip_vel_z',
-                      'obst_pos_x_1', 'obst_pos_y_1', 'obst_pos_z_1',
-                      'obst_vel_x_1', 'obst_vel_y_1', 'obst_vel_z_1',
-                      'goal_pos_x', 'goal_pos_y', 'goal_pos_z',
-                      'action_x', 'action_y', 'action_z']
+    INPUT_FEATURES = ['action_0', 'action_1', 'action_2',
+                      'grip-pos_0', 'grip-pos_1', 'grip-pos_2',
+                      'grip-vel_0', 'grip-vel_1', 'grip-vel_2',
+                      'obstacle-body-position-2_0', 'obstacle-body-position-2_1',
+                      'obstacle-body-position-2_2',
+                      'obstacle-body-velocity-2_0',
+                      'obstacle-body-velocity-2_1', 'obstacle-body-velocity-2_2',
+                      'desired_goal_0',
+                      'desired_goal_1', 'desired_goal_2']
 
-    OUTPUT_FEATURES = ['is_safe_action']  # ONLY 1 feature is currently supported
+    # INPUT_FEATURES = ['grip_pos_x', 'grip_pos_y', 'grip_pos_z',
+    #                   'grip_vel_x', 'grip_vel_y', 'grip_vel_z',
+    #                   'obst_pos_x_1', 'obst_pos_y_1', 'obst_pos_z_1',
+    #                   'obst_vel_x_1', 'obst_vel_y_1', 'obst_vel_z_1',
+    #                   'goal_pos_x', 'goal_pos_y', 'goal_pos_z',
+    #                   'action_x', 'action_y', 'action_z']
+
+    OUTPUT_FEATURES = ['is_viable']  # ONLY 1 feature is currently supported
     # print(ORIGIN_DATA.loc[:, label].value_counts())
     ORIGIN_DATA = pd.read_csv(FILE_PATH_TRAIN)
     return ORIGIN_DATA, INPUT_FEATURES, OUTPUT_FEATURES
@@ -34,7 +45,8 @@ def get_processed_data(origin_data=None, input_features=None, output_features=No
     prepocessed_data = prepocessed_data.sample(frac=1)  # select sampled safe data
     prepocessed_data = prepocessed_data.loc[:, all_features]
 
-    data = prepocessed_data.iloc[0:12000]
+    #data = prepocessed_data.iloc[0:12000]
+    data = prepocessed_data
     data = data.values
     X, Y = data[:, :-1], data[:, -1]
     print(X.shape, Y.shape)
