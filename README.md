@@ -1,4 +1,4 @@
-# CyberPortect_bnn
+# CyberProtect_bnn
 
 The project aims to validate the safety state of Human-Robot-Collaboration by using Bayesian models. Bayesian models includes Bayeian networks and Bayesian neural networks. 
 
