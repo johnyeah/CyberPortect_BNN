@@ -4,13 +4,12 @@ The project aims to validate the safety state of Human-Robot-Collaboration by us
 
 
 Mainly, the files in the project is displayed in following:
-* naive Bayes classifier: 
+* **naive Bayes classifier:** 
 Gaussian naive Bayes, Bernoulli naive Bayes, Multinomial naive Bayes.
 roc-curve
 
-* nn: 
+* **nn:** 
 neural network
 
-* bnn: 
-bayesain neural network
+* **bnn:** 
 
