@@ -1,3 +1,4 @@
+
 # load packages
 import numpy as np
 import pandas as pd
@@ -24,6 +25,57 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed_all(999)
 
 
+
+
+def data_prepare(PATH, dynamic=False):
+    global features, obst_vel, label, all_features
+
+    '''
+    data preprocessing
+    '''
+    # select the needed data by columns index
+    features = ['grip_pos_x', 'grip_pos_y', 'grip_pos_z',
+                'grip_vel_x', 'grip_vel_y', 'grip_vel_z',
+                'obst_pos_x_1', 'obst_pos_y_1', 'obst_pos_z_1',
+                'goal_pos_x', 'goal_pos_y', 'goal_pos_z',
+                'action_x', 'action_y', 'action_z']
+
+    obst_vel = ['obst_vel_x_1', 'obst_vel_y_1', 'obst_vel_z_1']
+
+    label = 'is_safe_action'
+
+    if (dynamic == True):
+        all_features = features + obst_vel + [label]
+    else:
+        all_features = features + [label]
+
+
+    # read csv file
+    origin_data = pd.read_csv(PATH)
+    origin_data[label] = origin_data[label].astype(int)
+    origin_data = origin_data.loc[:, all_features]
+    return origin_data
+
+
+
+def balance_data(data):
+    # select safe_state & unsafe state out, then make their number be equal
+    n_safe_state = data.loc[data[label] == 1]
+    n_unsafe_state = data.loc[data[label] == 0]
+    n_safe_state = n_safe_state.sample(n=len(n_unsafe_state))  # make the number of safe and unsafe be equal
+
+    data = pd.concat([n_safe_state, n_unsafe_state], axis=0)  # concatenate safe samples and unsafe samples
+    data = data.sample(frac=1)  # randomization
+    return data
+
+
+
+def normalizer(data):
+    scaler = Normalizer().fit(data)
+    scaled_data = scaler.transform(data)
+    return scaled_data, scaler
+
+
 # build net model
 class Net(nn.Module):
     def __init__(self, n_input, n_hidden, n_output):
@@ -40,50 +92,6 @@ class Net(nn.Module):
         out = self.predict(out)
 
         return out
-
-
-
-
-
-
-'''
-data preprocessing
-'''
-FILE_PATH_TRAIN_static = '191217_test_record_iter_fix_static1.csv' # static obstacle csv file
-FILE_PATH_TRAIN_dynamic = 'test_record_iter_fix_static.csv'  # dynamic obstacle csv file
-
-
-# read csv file
-origin_data = pd.read_csv(FILE_PATH_TRAIN_static)
-
-# select the needed data by columns index
-features = ['grip_pos_x', 'grip_pos_y', 'grip_pos_z',
-            'grip_vel_x', 'grip_vel_y', 'grip_vel_z',
-            'obst_pos_x_1', 'obst_pos_y_1', 'obst_pos_z_1',
-            'goal_pos_x', 'goal_pos_y', 'goal_pos_z',
-            'action_x', 'action_y', 'action_z']
-
-label = 'is_safe_action'
-
-all_features = features + [label]
-
-origin_data[label] = origin_data[label].astype(int)
-origin_data = origin_data.loc[:, all_features]
-
-
-
-def balance_data():
-    # select safe_state & unsafe state out, then make their number be equal
-    n_safe_state = origin_data.loc[origin_data[label] == 1]
-    n_unsafe_state = origin_data.loc[origin_data[label] == 0]
-    n_safe_state = n_safe_state.sample(n=len(n_unsafe_state))  # make the number of safe and unsafe be equal
-
-    data = pd.concat([n_safe_state, n_unsafe_state], axis=0)  # concatenate safe samples and unsafe samples
-    data = data.sample(frac=1)  # randomization
-
-    return data
-
-
 
 
 
@@ -167,16 +175,27 @@ def test(input_data):
 
 
 
-
 if __name__ == '__main__':
     '''
     prepare train data and test data
     '''
+
+    # File PATH
+    FILE_PATH_TRAIN_static = '191217_test_record_iter_fix_static1.csv'  # static obstacle csv file
+    FILE_PATH_TRAIN_dynamic = 'test_record_iter_fix_static.csv'  # dynamic obstacle csv file
+
+    preprocessed_data = data_prepare(FILE_PATH_TRAIN_static, dynamic=False)
+
+    # balance data
+    #preprocessed_data = balance_data(preprocessded_data)
+
     # prepare features and label: x, y
-    preprocessed_data = balance_data()
     preprocessed_data = preprocessed_data.values
     x = preprocessed_data[:, 0:len(features) - 1]
     y = preprocessed_data[:, len(all_features) - 1]
+
+    # normalize data
+    #x, _ = normalizer(x)
 
     # splite data to train data and test data
     x_train, x_test, y_train, y_test = train_test_split(
