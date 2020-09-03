@@ -26,3 +26,5 @@ FILE_PATH_TRAIN_static = '191217_test_record_iter_fix_static1.csv'
 FILE_PATH_TRAIN_dynamic = 'test_record_iter_fix_static.csv'   
 
 
+## .npy File
+`.npy` File is used for creating ROC-Curve in File **naive Bayes classifier**.
