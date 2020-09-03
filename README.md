@@ -14,7 +14,7 @@ neural network
 
 * **bnn:**   
 bayesain neural network
-> `bnn_simple` is a simple way to create and build bnn algorithm, but with low accuracy.
+> File **bnn_simple** is a simple way to create and build bnn algorithm, but with low accuracy.
 
 
 ## dataset
