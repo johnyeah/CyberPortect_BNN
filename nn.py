@@ -95,9 +95,7 @@ class Net(nn.Module):
 
 
 
-def trainer(input_data):
-    num_epoch = 20
-
+def trainer(input_data, num_epoch):
     all_losses = []
     all_acc = []
 
@@ -155,7 +153,7 @@ def trainer(input_data):
 
 
 def test(input_data):
-    net1 = Net(n_input=14, n_hidden=20, n_output=2)
+    net1 = Net(n_input=15, n_hidden=20, n_output=2)
     net1.load_state_dict(torch.load(PATH))
     test_correct = 0
     total = 0
@@ -190,9 +188,10 @@ if __name__ == '__main__':
     #preprocessed_data = balance_data(preprocessded_data)
 
     # prepare features and label: x, y
+    # preprocessed_data = preprocessed_data.iloc[0:1000]
     preprocessed_data = preprocessed_data.values
-    x = preprocessed_data[:, 0:len(features) - 1]
-    y = preprocessed_data[:, len(all_features) - 1]
+    x = preprocessed_data[:, : -1]
+    y = preprocessed_data[:, -1]
 
     # normalize data
     #x, _ = normalizer(x)
@@ -231,7 +230,7 @@ if __name__ == '__main__':
     )
 
     #define network
-    net = Net(n_input=14, n_hidden=20, n_output=2)
+    net = Net(n_input=15, n_hidden=20, n_output=2)
     print(net)
 
     '''
@@ -241,7 +240,8 @@ if __name__ == '__main__':
     loss_func = nn.CrossEntropyLoss()
 
     #train model
-    trainer(train_loader)
+    num_epoch = 20
+    trainer(train_loader,  num_epoch)
 
     #save the trained model
     PATH = 'net_params.pkl'
