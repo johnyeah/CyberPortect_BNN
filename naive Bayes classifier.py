@@ -43,12 +43,12 @@ origin_data = origin_data.loc[:, all_features]
 load bnn data: y_test, y_predict
 '''
 # static bnn data
-y_test_static = np.load('/home/mae/Python_Code/CyberPortect_BNN/CyberPortect_BNN/Y_test.npy')
-y_predict_static = np.load('/home/mae/Python_Code/CyberPortect_BNN/CyberPortect_BNN/yhats_test_mean.npy')
+y_bnn_test_static = np.load('/home/mae/Python_Code/CyberPortect_BNN/CyberPortect_BNN/Y_test.npy')
+y_bnn_predict_static = np.load('/home/mae/Python_Code/CyberPortect_BNN/CyberPortect_BNN/yhats_test_mean.npy')
 
 # dynamic bnn data
-y_test_dynamic = np.load('/home/mae/Python_Code/CyberPortect_BNN/CyberPortect_BNN/y_test_dynamic.npy')
-y_predict_dynamic = np.load('/home/mae/Python_Code/CyberPortect_BNN/CyberPortect_BNN/yhats_test_mean_dynamic.npy')
+y_bnn_test_dynamic = np.load('/home/mae/Python_Code/CyberPortect_BNN/CyberPortect_BNN/y_test_dynamic.npy')
+y_bnn_predict_dynamic = np.load('/home/mae/Python_Code/CyberPortect_BNN/CyberPortect_BNN/yhats_test_mean_dynamic.npy')
 
 
 '''
@@ -137,7 +137,7 @@ def multiple_roc(x_test):
     bnn static roc curve
     '''
 
-    fpr_static, tpr_static, _ = roc_curve(y_test_static, y_predict_static)
+    fpr_static, tpr_static, _ = roc_curve(y_bnn_test_static, y_bnn_predict_static)
     roc_auc_static = metrics.auc(fpr_static, tpr_static)
 
     plt.stackplot(fpr_static, tpr_static, color='coral', alpha=0.5, edgecolor='black')
@@ -220,7 +220,7 @@ def bnn_nn_roc():
     bnn static roc
     '''
 
-    fpr_static, tpr_static, _ = roc_curve(y_test_static, y_predict_static)
+    fpr_static, tpr_static, _ = roc_curve(y_bnn_test_static, y_bnn_predict_static)
     roc_auc_static = metrics.auc(fpr_static, tpr_static)
 
     plt.stackplot(fpr_static, tpr_static, color='coral', alpha=0.5, edgecolor='black')
@@ -228,12 +228,12 @@ def bnn_nn_roc():
     plt.text(0.03, 0.9, 'bnn_static obstacle (area = %0.2f)' % roc_auc_static)
 
 
-
     '''
-    bnn dynamic roc  
+    bnn dynamic roc 
     '''
 
-    fpr_dynamic, tpr_dynamic, _ = roc_curve(y_test_dynamic, y_predict_dynamic)
+    
+    fpr_dynamic, tpr_dynamic, _ = roc_curve(y_bnn_test_dynamic, y_bnn_predict_dynamic)
     roc_auc_dynamic = metrics.auc(fpr_dynamic, tpr_dynamic)
     # add area
     plt.stackplot(fpr_dynamic, tpr_dynamic, color='steelblue', alpha=0.5, edgecolor='black')
@@ -336,9 +336,24 @@ if __name__ == '__main__':
     multiple roc curve
     '''
     multiple_roc(x_test)
-
-
     bnn_nn_roc()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
